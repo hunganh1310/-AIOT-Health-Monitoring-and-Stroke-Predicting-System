@@ -1,0 +1,7 @@
+mimic_perform_train_all_168
+Signals: PPG, PPG recorded using bedside monitor; and ECG, ECG recorded using bedside monitor, lead III; and resp, Impedance pneumography respiratory signal recorded at the chest using bedside monitor
+Sampling frequency: 125 Hz
+Original Subject ID: 3058134
+Original Recording ID: 3058134
+Original file: 3058134_0012m
+Group: n
