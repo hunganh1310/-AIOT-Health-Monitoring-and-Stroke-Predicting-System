@@ -1,3 +1,80 @@
+*Vietnamese below*
+# AIOT Health Monitoring and Stroke Predicting System
+
+## 📌 Introduction
+The **AIOT Health Monitoring and Stroke Predicting System** project aims to build a real-time health monitoring system focusing on detecting Atrial Fibrillation (AF) — a key factor in **early stroke prediction**.
+
+The system combines **IoT + Machine Learning** to collect biometric data, analyze it, and send alerts immediately when abnormalities are detected.
+
+---
+
+## 🛠️ Hardware
+- **PPG Sensor**: MAX30102  
+- **Microcontroller**: ESP32-WROOM-32  
+- **OLED Display**: SSD1306 (displaying heart rate & connection status)  
+- **Power Supply**: Lithium battery + charging circuit  
+- **Connectivity**: WiFi
+
+---
+
+## ☁️ Management and Monitoring Platform
+- **ThingsBoard**: Device management, dashboard display, and PPG data storage
+- **MQTT**: Communication between ESP32 and the server
+
+---
+
+## 🤖 Machine Learning (ML)
+- **Algorithm**: Random Forest  
+- **Goal**: Extract features from PPG signals and classify **AF / Non-AF**
+- **Sampling Frequency**: 125 Hz
+- **Training Dataset**: [MIMIC-III Waveform Database – Perform subset](https://physionet.org/)  
+- **Preprocessing**:
+  - PPG signal noise filtering
+  - Data normalization (`scaler`)
+  - Missing value handling (`imputer`)
+
+---
+
+## 📡 Alerts
+- When **AF** is detected, the system sends an **SMS alert** to the user via **Twilio**.
+
+---
+
+## 🚀 How to Run
+### 1. ESP32
+- Connect MAX30102 and SSD1306 to ESP32
+- Flash the `PPG.ino` code
+- Update WiFi & MQTT Broker credentials in the code
+
+### 2. Server (PC / Raspberry Pi)
+- Install dependencies:
+```bash
+pip install paho-mqtt joblib pandas numpy scikit-learn twilio
+```
+- Run the script:
+```bash
+python af_monitor.py
+```
+
+---
+
+## 📷 Demo
+![Demo Video](demo.gif)  
+*(GIF demonstrating system operation)*
+
+---
+
+## 📌 Notes
+- Ensure the PPG sampling frequency on ESP32 matches `FS` in `af_monitor.py`
+- A **Twilio** account is required to send SMS alerts
+- **ThingsBoard** and the MQTT Broker must be configured before running
+
+---
+
+## 📜 License
+This project is intended for research and educational purposes only. It is **not** for medical diagnosis use.
+
+(Vietnamese)
 # AIOT Health Monitoring and Stroke Predicting System
 
 ## 📌 Giới thiệu
