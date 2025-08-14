@@ -22,6 +22,16 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 #define MAX_BRIGHTNESS 255
 
+const char* localMqttServer = "192.168.1.100"; // IP máy tính của bạn
+const int localMqttPort = 1883;               // Port broker máy tính
+const char* localMqttClientId = "esp32_ppg";
+const char* localMqttUsername = "";           // Nếu broker không yêu cầu user/pass thì để trống
+const char* localMqttPassword = "";
+
+// Tạo kết nối riêng cho broker máy tính
+WiFiClient localEspClient;
+PubSubClient localClient(localEspClient);
+
 const char* ssid = "BXT235";
 const char* password = "321Thai@";
 const char* mqttServer = "nxchieu.duckdns.org";
@@ -79,6 +89,20 @@ void setupWiFi() {
   }
 }
 
+void reconnectLocalMQTT() {
+  while (!localClient.connected()) {
+    Serial.print("🔄 Kết nối MQTT Local... ");
+    if (localClient.connect(localMqttClientId, localMqttUsername, localMqttPassword)) {
+      Serial.println("✅ MQTT Local đã kết nối");
+    } else {
+      Serial.print("❌ Lỗi MQTT Local: ");
+      Serial.print(localClient.state());
+      Serial.println(" -> thử lại sau 2s");
+      delay(2000);
+    }
+  }
+}
+
 void reconnectMQTT() {
   int attempts = 0;
   while (!client.connected() && attempts < 3) {
@@ -124,6 +148,9 @@ void setup()
   client.setServer(mqttServer, mqttPort);
   client.setKeepAlive(60);
   client.setSocketTimeout(5); // Timeout 5 giây
+
+  // Kết nối broker máy tính
+  localClient.setServer(localMqttServer, localMqttPort);
   
   pinMode(LED_BUILTIN, OUTPUT);
   
@@ -184,6 +211,12 @@ void loop(){
     reconnectMQTT();
   }
   client.loop();
+
+  // MQTT Local
+  if (!localClient.connected()) {
+    reconnectLocalMQTT();
+  }
+  localClient.loop();
 
   bufferLength = 100; //buffer length 100 = 4 seconds of samples at 25sps
 
@@ -260,7 +293,7 @@ void loop(){
       snprintf(payload, sizeof(payload), "%.3f,%ld", timeSec, irValue);
 
       // Gửi lên MQTT
-      client.publish("ppg/data", payload);
+      localClient.publish("ppg/data", payload);
     }
     // Đọc điện áp pin thực tế
     int batteryPercent = 95;
