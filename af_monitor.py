@@ -22,10 +22,10 @@ FS = 125  # Tần số lấy mẫu của PPG (Hz)
 WINDOW_SECONDS = 10  # Gom đủ 10 giây
 
 # Twilio SMS
-TWILIO_SID = "ACxxxxxxxxxxxxxxxxxxxx"
-TWILIO_AUTH_TOKEN = "xxxxxxxxxxxxxxxxxxxx"
-TWILIO_FROM = "+1234567890"  # số gửi
-TWILIO_TO = "+849xxxxxxxx"   # số nhận cảnh báo
+TWILIO_SID = "YOUR_TWILIO_SID_HERE"
+TWILIO_AUTH_TOKEN = "TOKEN_HERE"
+TWILIO_FROM = "+84889506638"  # số gửi
+TWILIO_TO = "+848889506638"   # số nhận cảnh báo
 
 # Model và preprocessing
 MODEL_PATH = "rf_model.pkl"
