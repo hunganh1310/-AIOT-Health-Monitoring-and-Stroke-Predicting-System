@@ -9,9 +9,9 @@
 MAX30105 particleSensor;
 
 // OLED SSD1315 128x64
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+//#define SCREEN_WIDTH 128
+//#define SCREEN_HEIGHT 64
+//Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 // Pin đọc điện áp pin qua chia áp (VD: GPIO34)
 #define BATTERY_PIN 34
@@ -22,7 +22,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 #define MAX_BRIGHTNESS 255
 
-const char* localMqttServer = "192.168.1.100"; // IP máy tính của bạn
+const char* localMqttServer = "192.168.1.9"; // IP máy tính của bạn
 const int localMqttPort = 1883;               // Port broker máy tính
 const char* localMqttClientId = "esp32_ppg";
 const char* localMqttUsername = "";           // Nếu broker không yêu cầu user/pass thì để trống
@@ -32,15 +32,24 @@ const char* localMqttPassword = "";
 WiFiClient localEspClient;
 PubSubClient localClient(localEspClient);
 
-const char* ssid = "BXT235";
-const char* password = "321Thai@";
+const char* ssid = "FPT";
+const char* password = "80812004";
 const char* mqttServer = "nxchieu.duckdns.org";
 const int mqttPort = 11883;
 const char* mqttClientId = "jy2fl048z8fdaj4gxdc9";
 const char* mqttUsername = "3j84yqow1tugy0kjbiix";
 const char* mqttPassword = "xzzad47wbsittxqno50c";
 
+// Thu thập dữ liệu 10s (125 Hz)
+const int sampleRate = 125;
+const int patchDurationSec = 10;
+const int patchSize = sampleRate * patchDurationSec; // 1250 mẫu
+float ppgBuffer[patchSize];
+int sampleCount = 0;
 unsigned long lastSampleTime = 0;
+
+bool patchReady = false;
+
 const int sampleIntervalMs = 8; // 125 Hz = 8ms/mẫu
 unsigned long sampleIndex = 0;
 
@@ -89,7 +98,7 @@ void setupWiFi() {
   }
 }
 
-void reconnectLocalMQTT() {
+/*void reconnectLocalMQTT() {
   while (!localClient.connected()) {
     Serial.print("🔄 Kết nối MQTT Local... ");
     if (localClient.connect(localMqttClientId, localMqttUsername, localMqttPassword)) {
@@ -101,7 +110,7 @@ void reconnectLocalMQTT() {
       delay(2000);
     }
   }
-}
+}*/
 
 void reconnectMQTT() {
   int attempts = 0;
@@ -138,6 +147,25 @@ float readBatteryVoltage() {
   return voltage;
 }
 
+void sendPatchInChunks() {
+  const int chunkSize = 250; // 250 mẫu/gói
+  int numChunks = patchSize / chunkSize;
+
+  for (int c = 0; c < numChunks; c++) {
+    String csvPayload = "";
+    for (int i = 0; i < chunkSize; i++) {
+      int idx = c * chunkSize + i;
+      csvPayload += String(ppgBuffer[idx], 5);
+      if (i < chunkSize - 1) csvPayload += ",";
+    }
+
+    client.publish("ppg/patch", csvPayload.c_str());
+    Serial.printf("Sent chunk %d/%d\n", c+1, numChunks);
+
+    delay(2000); // gửi theo chu kỳ giống MQTT monitor (2 giây/gói)
+  }
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -148,16 +176,13 @@ void setup()
   client.setServer(mqttServer, mqttPort);
   client.setKeepAlive(60);
   client.setSocketTimeout(5); // Timeout 5 giây
-
-  // Kết nối broker máy tính
-  localClient.setServer(localMqttServer, localMqttPort);
   
   pinMode(LED_BUILTIN, OUTPUT);
   
   // Khởi tạo I2C cho ESP32
   Wire.begin(21, 22); // SDA = GPIO21, SCL = GPIO22 (default cho ESP32)
   
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
+  /*if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
     Serial.println(F("❌ SSD1315 không tìm thấy"));
     for(;;); // Dừng lại nếu không tìm thấy
   }
@@ -166,7 +191,7 @@ void setup()
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0,0);
   display.println("Starting...");
-  display.display();
+  display.display();*/
 
   // Khởi tạo sensor
   if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) //400kHz speed
@@ -211,12 +236,6 @@ void loop(){
     reconnectMQTT();
   }
   client.loop();
-
-  // MQTT Local
-  if (!localClient.connected()) {
-    reconnectLocalMQTT();
-  }
-  localClient.loop();
 
   bufferLength = 100; //buffer length 100 = 4 seconds of samples at 25sps
 
@@ -277,23 +296,40 @@ void loop(){
       }
     }
     //Gửi Broker cho học máy
+    // Thu thập mẫu
     unsigned long now = millis();
     if (now - lastSampleTime >= sampleIntervalMs) {
       lastSampleTime = now;
-
-      // Đọc IR value từ cảm biến (dùng làm PPG)
       long irValue = particleSensor.getIR();
 
-      // Tính thời gian (s)
-      float timeSec = sampleIndex / 125.0;
-      sampleIndex++;
+      if (sampleCount < patchSize) {
+        ppgBuffer[sampleCount++] = irValue / 100000.0; // scale
+      }
 
-      // Tạo chuỗi CSV "Time,PPG"
-      char payload[50];
-      snprintf(payload, sizeof(payload), "%.3f,%ld", timeSec, irValue);
+      if (sampleCount >= patchSize) {
+        patchReady = true;
+        sampleCount = 0;
+      }
+    }
 
-      // Gửi lên MQTT
-      localClient.publish("ppg/data", payload);
+    // Khi đủ patch
+    if (patchReady) {
+      patchReady = false;
+
+      // Kiểm tra valid (tất cả mẫu > 50000)
+      bool valid = true;
+      for (int i = 0; i < patchSize; i++) {
+        if (ppgBuffer[i] * 100000.0 <= 50000) { // scale lại để so sánh
+          valid = false;
+          break;
+        }
+      }
+
+      if (valid) {
+        sendPatchInChunks();
+      } else {
+        Serial.println("Patch skipped (no finger detected).");
+      }
     }
     // Đọc điện áp pin thực tế
     int batteryPercent = 95;
@@ -387,13 +423,14 @@ void loop(){
     }
 
     // Cập nhật OLED
-    display.clearDisplay();
+    /*display.clearDisplay();
     display.setCursor(0,0);
     
     if(irBuffer[99] < 50000) {
       display.print("BPM: -- \n");
       display.print("Avg BPM: -- \n");
       display.print("SpO2: -- \n");
+      Serial.print(status);
     } else {
       display.print("BPM: ");
       display.println((validHeartRate == 1 && heartRate > 40 && heartRate < 200) ? heartRate : 0);
@@ -401,6 +438,7 @@ void loop(){
       display.println((validReadings > 0) ? avgHeartRate : 0, 1);
       display.print("SpO2: ");
       display.println((validSPO2 == 1 && spo2 > 80 && spo2 <= 100) ? spo2 : 0);
+      Serial.print(status);
     }
     
     display.print("Pin: ");
@@ -410,7 +448,7 @@ void loop(){
     display.println(WiFi.status() == WL_CONNECTED ? "OK" : "FAIL");
     display.print("MQTT: ");
     display.println(client.connected() ? "OK" : "FAIL");
-    display.display();
+    display.display();*/
     
     // Ngắt nghỉ ngắn để tránh watchdog timer reset trên ESP32
     yield();
