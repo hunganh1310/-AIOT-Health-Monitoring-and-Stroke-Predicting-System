@@ -7,7 +7,6 @@ import paho.mqtt.client as mqtt
 import numpy as np
 import pandas as pd
 import joblib
-from twilio.rest import Client
 
 # Import hàm extract_features từ code bạn đã viết
 from feature_extraction import extract_features
@@ -22,12 +21,6 @@ MQTT_TOPIC = "ppg/patch"
 FS = 125  # Tần số lấy mẫu của PPG (Hz)
 WINDOW_SECONDS = 10  # Gom đủ 10 giây (1250 samples)
 PATCH_SIZE = 250  # ESP32 gửi 250 samples/patch (2 giây)
-
-# Twilio SMS
-TWILIO_SID = "YOUR_TWILIO_SID_HERE"
-TWILIO_AUTH_TOKEN = "TOKEN_HERE"
-TWILIO_FROM = "+84889506638"  # số gửi
-TWILIO_TO = "+848889506638"   # số nhận cảnh báo
 
 # Model và preprocessing
 MODEL_PATH = "rf_model.pkl"
@@ -49,30 +42,6 @@ except Exception as e:
 ppg_buffer = deque(maxlen=FS * WINDOW_SECONDS * 2)  # Buffer lớn hơn để tránh mất data
 buffer_lock = threading.Lock()
 
-# Twilio client
-try:
-    sms_client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
-    print("✅ Twilio client initialized")
-except:
-    print("⚠️ Twilio not configured, SMS alerts disabled")
-    sms_client = None
-
-# ========== Hàm gửi cảnh báo ==========
-def send_sms_alert(probability):
-    if sms_client is None:
-        print(f"⚠️ SMS Alert (disabled): AF detected with P = {probability:.3f}")
-        return
-    
-    try:
-        msg = f"⚠️ Cảnh báo: Phát hiện nguy cơ AF! Xác suất = {probability:.2f}"
-        sms_client.messages.create(
-            body=msg,
-            from_=TWILIO_FROM,
-            to=TWILIO_TO
-        )
-        print("📱 SMS alert sent!")
-    except Exception as e:
-        print(f"❌ Failed to send SMS: {e}")
 
 # ========== MQTT Callbacks ==========
 def on_connect(client, userdata, flags, rc):
